@@ -46,17 +46,65 @@ jobs:
       # Executa os testes já compilados; falhas fazem a tarefa falhar.
       - name: Executar testes
         run: dotnet test testecicd.Tests/testecicd.Tests.csproj --configuration Release --no-build --no-restore
-  verificar-runner:
-    # Só inicia depois que build e testes passam.
+
+      # Gera os arquivos publicados da aplicação Blazor.
+      - name: Publicar aplicação
+        run: dotnet publish testecicd/testecicd.csproj --configuration Release --no-restore --output ./publish
+
+      # Disponibiliza os arquivos publicados para o job que executa no IIS.
+      - name: Armazenar pacote publicado
+        uses: actions/upload-artifact@v4
+        with:
+          name: testecicd-publish
+          path: publish/
+          if-no-files-found: error
+          retention-days: 1
+
+  deploy-iis:
+    # Só inicia depois que build, testes e publicação passam.
     needs: build-and-test
-    # Evita executar o job em pull requests.
+    # Publica somente quando a branch executada é master.
     if: github.ref == 'refs/heads/master'
-    # Labels padrão de um runner Windows x64.
+    # Executa no runner Windows x64 instalado na máquina do IIS.
     runs-on: [self-hosted, windows, x64]
     steps:
-      - name: Confirmar computador que executou o job
+      # Baixa os arquivos gerados pelo job build-and-test.
+      - name: Baixar pacote publicado
+        uses: actions/download-artifact@v4
+        with:
+          name: testecicd-publish
+          path: ${{ runner.temp }}\testecicd-publish
+
+      # Coloca apenas esta aplicação em manutenção enquanto os arquivos são copiados.
+      - name: Publicar no IIS
         shell: pwsh
         run: |
-          Write-Host "Runner: $env:COMPUTERNAME"
+          $ErrorActionPreference = 'Stop'
+          $publishPath = Join-Path $env:RUNNER_TEMP 'testecicd-publish'
+          $sitePath = 'C:\inetpub\testecicd'
+          $offlinePath = Join-Path $sitePath 'app_offline.htm'
+
+          if (-not (Test-Path $publishPath)) {
+            throw "Pacote publicado não encontrado: $publishPath"
+          }
+
+          if (-not (Test-Path $sitePath)) {
+            throw "Pasta física do site não encontrada: $sitePath"
+          }
+
+          Set-Content -Path $offlinePath -Value '<html><body>Publicação em andamento.</body></html>' -Encoding UTF8
+
+          try {
+            Start-Sleep -Seconds 5
+            & robocopy $publishPath $sitePath /E /COPY:DAT /DCOPY:DAT /R:2 /W:2
+            $copyExitCode = $LASTEXITCODE
+
+            if ($copyExitCode -ge 8) {
+              throw "Robocopy falhou com código $copyExitCode."
+            }
+          }
+          finally {
+            Remove-Item -Path $offlinePath -Force -ErrorAction SilentlyContinue
+          }
 
 
