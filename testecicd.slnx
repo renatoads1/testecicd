@@ -1,3 +1,4 @@
 <Solution>
   <Project Path="testecicd/testecicd.csproj" />
+  <Project Path="testecicd.Tests/testecicd.Tests.csproj" />
 </Solution>

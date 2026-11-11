@@ -1,0 +1,48 @@
+# Nome exibido na aba Actions do GitHub.
+name: CI - Build e Testes
+
+# Eventos que iniciam este workflow.
+on:
+  # Executa quando há push para a branch principal.
+  push:
+    branches:
+      - master
+
+  # Executa ao abrir ou atualizar um pull request destinado à branch principal.
+  pull_request:
+    branches:
+      - master
+
+  # Permite iniciar o workflow manualmente pela aba Actions.
+  workflow_dispatch:
+
+# Tarefas executadas pelo workflow.
+jobs:
+  build-and-test:
+    # Usa uma máquina Linux hospedada pelo GitHub.
+    runs-on: ubuntu-latest
+
+    # Etapas executadas em sequência dentro da tarefa.
+    steps:
+      # Baixa o conteúdo do repositório para a máquina do runner.
+      - name: Baixar o código
+        uses: actions/checkout@v4
+
+      # Instala o SDK .NET usado pelo projeto.
+      - name: Instalar o .NET 6
+        uses: actions/setup-dotnet@v4
+        with:
+          # Mantém a versão compatível com os projetos que targetam net6.0.
+          dotnet-version: 6.0.x
+
+      # Restaura os pacotes da aplicação e do projeto de testes.
+      - name: Restaurar dependências
+        run: dotnet restore testecicd.Tests/testecicd.Tests.csproj
+
+      # Compila o projeto de testes e a aplicação referenciada em modo Release.
+      - name: Compilar
+        run: dotnet build testecicd.Tests/testecicd.Tests.csproj --configuration Release --no-restore
+
+      # Executa os testes já compilados; falhas fazem a tarefa falhar.
+      - name: Executar testes
+        run: dotnet test testecicd.Tests/testecicd.Tests.csproj --configuration Release --no-build --no-restore
