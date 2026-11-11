@@ -46,3 +46,17 @@ jobs:
       # Executa os testes já compilados; falhas fazem a tarefa falhar.
       - name: Executar testes
         run: dotnet test testecicd.Tests/testecicd.Tests.csproj --configuration Release --no-build --no-restore
+  verificar-runner:
+    # Só inicia depois que build e testes passam.
+    needs: build-and-test
+    # Evita executar o job em pull requests.
+    if: github.ref == 'refs/heads/master'
+    # Labels padrão de um runner Windows x64.
+    runs-on: [self-hosted, windows, x64]
+    steps:
+      - name: Confirmar computador que executou o job
+        shell: pwsh
+        run: |
+          Write-Host "Runner: $env:COMPUTERNAME"
+
+
