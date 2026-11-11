@@ -68,19 +68,29 @@ jobs:
     # Executa no runner Windows x64 instalado na máquina do IIS.
     runs-on: [self-hosted, windows, x64]
     steps:
+      # Prepara uma pasta temporária fora da raiz pública do IIS.
+      - name: Preparar pasta temporária
+        shell: pwsh
+        run: |
+          $publishPath = 'C:\_deploy\testecicd-publish'
+          if (Test-Path $publishPath) {
+            Remove-Item -Path $publishPath -Recurse -Force
+          }
+          New-Item -ItemType Directory -Path $publishPath -Force | Out-Null
+
       # Baixa os arquivos gerados pelo job build-and-test.
       - name: Baixar pacote publicado
         uses: actions/download-artifact@v4
         with:
           name: testecicd-publish
-          path: ${{ runner.temp }}\testecicd-publish
+          path: 'C:\_deploy\testecicd-publish'
 
       # Coloca apenas esta aplicação em manutenção enquanto os arquivos são copiados.
       - name: Publicar no IIS
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $publishPath = Join-Path $env:RUNNER_TEMP 'testecicd-publish'
+          $publishPath = 'C:\_deploy\testecicd-publish'
           $sitePath = 'C:\inetpub\testecicd'
           $offlinePath = Join-Path $sitePath 'app_offline.htm'
 
@@ -106,5 +116,8 @@ jobs:
           finally {
             Remove-Item -Path $offlinePath -Force -ErrorAction SilentlyContinue
           }
+
+          # O Robocopy usa códigos 0 a 7 para sucesso; o runner espera código 0.
+          exit 0
 
 
